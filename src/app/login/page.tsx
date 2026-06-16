@@ -98,29 +98,16 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form action={handleLogin} className="space-y-5">
-            <label className="block">
-              <span className="text-xs font-semibold text-foreground">Email / Username</span>
-              <input
-                name="email"
-                type="email"
-                autoComplete="email"
-                placeholder="admin@perusahaan.com"
-                className="mt-2 h-12 w-full rounded-2xl border border-input bg-background px-4 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground/70 focus:border-primary"
-                required
-              />
-            </label>
+          <form
+  className="space-y-5"
+  onSubmit={async (e) => {
+    e.preventDefault();
 
-            <label className="block">
-              <span className="text-xs font-semibold text-foreground">Password</span>
-              <input
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                placeholder="••••••••"
-                className="mt-2 h-12 w-full rounded-2xl border border-input bg-background px-4 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground/70 focus:border-primary"
-                required
-              />
+    const formData = new FormData(e.currentTarget);
+
+    await handleLogin(formData);
+  }}
+>
             </label>
 
             <div className="flex items-center justify-between gap-3 text-xs">
