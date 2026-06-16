@@ -1,31 +1,26 @@
-# Gunakan Node.js resmi sebagai base image
-FROM node:18-alpine AS base
-
-# 1. Install dependencies
-FROM base AS deps
-# Menambahkan openssl karena aplikasi Anda menggunakan Prisma + Supabase
-RUN apk add --no-cache libc6-compat openssl
+# Gunakan node standar versi slim yang lebih stabil dibanding alpine untuk urusan npm install
+FROM node:18-slim AS builder
 WORKDIR /app
+
+# Install openssl untuk keperluan database Supabase
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
 COPY package*.json ./
-# Perbaikan: Menggunakan npm install biasa dengan flag legacy agar bypass konflik versi di server
-RUN npm install --legacy-peer-deps
 
-# 2. Rebuild the source code
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+# Gunakan--no-audit dan --prefer-offline agar proses build sangat ringan di RAM VPS
+RUN npm install --no-audit --prefer-offline --no-fund
+
 COPY . .
 
-# Generate Prisma Client sebelum build Next.js
+# Generate Client & Build
 RUN npx prisma generate
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-# 3. Production image, copy all the files and run next
-FROM base AS runner
+# Runner Stage (Hanya mengambil hasil jadi agar sizenya kecil)
+FROM node:18-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next
