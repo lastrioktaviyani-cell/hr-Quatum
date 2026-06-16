@@ -37,6 +37,26 @@ services:
       - minio_data:/data
     command: server /data --console-address ":9001"
 
+  # ====================================================
+  # APPLIKASI UTAMA NEXT.JS (DASHBOARD HRD)
+  # ====================================================
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "80:3000" # Menghubungkan Port 80 VPS (Luar) langsung ke Port 3000 Next.js (Dalam)
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/hrd_dashboard
+      - DIRECT_URL=postgresql://postgres:postgres@postgres:5432/hrd_dashboard
+      - NEXT_PUBLIC_MINIO_ENDPOINT=http://IP_VPS_ANDA:9090
+      # Tambahkan variabel .env lain yang dibutuhkan aplikasi Anda di bawah ini
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
 volumes:
   postgres_data:
   redis_data:
