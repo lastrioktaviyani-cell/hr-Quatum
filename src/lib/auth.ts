@@ -1,45 +1,16 @@
-import NextAuth from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaAdapter } from "@auth/prisma-adapter";
-import { getDb } from "./prisma";
-import bcryptjs from "bcryptjs";
-import { z } from "zod";
-import type { DefaultSession } from "next-auth";
-
-declare module "next-auth" {
-  interface Session {
-    user: {
-      id: string;
-      roleId: string;
-      employeeId?: string;
-    } & DefaultSession["user"];
-  }
-
-  interface User {
-    roleId?: string;
-    employeeId?: string;
-  }
-}
-
-declare module "next-auth/jwt" {
-  interface JWT {
-    id?: string;
-    roleId?: string;
-    employeeId?: string;
-  }
-}
-
-const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(1, "Password is required"),
-});
-
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
+
   adapter: PrismaAdapter(getDb()),
-  session: { strategy: "jwt" },
+
+  session: {
+    strategy: "jwt",
+  },
+
   pages: {
     signIn: "/login",
   },
+
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -47,6 +18,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
+
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
           return null;
@@ -61,7 +33,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           });
 
           if (!user || !user.password) {
-            // Fallback dummy login untuk dev tanpa seed DB
             if (email === "admin@perusahaan.com" && password === "admin123") {
               return {
                 id: "dummy-admin",
@@ -71,10 +42,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                 employeeId: undefined,
               };
             }
+
             return null;
           }
 
-          const passwordMatch = await bcryptjs.compare(password, user.password);
+          const passwordMatch = await bcryptjs.compare(
+            password,
+            user.password
+          );
+
           if (!passwordMatch) return null;
 
           return {
@@ -90,6 +66,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
+
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
@@ -97,14 +74,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.roleId = user.roleId;
         token.employeeId = user.employeeId;
       }
+
       return token;
     },
+
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id ?? "";
         session.user.roleId = token.roleId ?? "";
         session.user.employeeId = token.employeeId;
       }
+
       return session;
     },
   },
