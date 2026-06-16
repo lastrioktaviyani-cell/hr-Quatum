@@ -1,34 +1,45 @@
-# Gunakan node standar versi slim yang lebih stabil dibanding alpine untuk urusan npm install
-FROM node:18-slim AS builder
-WORKDIR /app
+# ---------- Base ----------
+FROM node:22-alpine AS base
 
-# Install openssl untuk keperluan database Supabase
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache libc6-compat git
+
+# ---------- Dependencies ----------
+FROM base AS deps
+WORKDIR /app
 
 COPY package*.json ./
+COPY prisma ./prisma
 
-# Gunakan--no-audit dan --prefer-offline agar proses build sangat ringan di RAM VPS
-RUN npm install --no-audit --prefer-offline --no-fund
+RUN npm install
 
+# ---------- Builder ----------
+FROM base AS builder
+
+ARG DATABASE_URL
+ENV DATABASE_URL=$DATABASE_URL
+
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/prisma ./prisma
 COPY . .
 
-# Generate Client & Build
 RUN npx prisma generate
-ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-# Runner Stage (Hanya mengambil hasil jadi agar sizenya kecil)
-FROM node:18-slim AS runner
+# ---------- Runner ----------
+FROM base AS runner
+
 WORKDIR /app
+
 ENV NODE_ENV=production
 
-COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/prisma ./prisma
 
 EXPOSE 3000
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
 
-CMD ["npm", "run", "start"]
+CMD ["npm", "start"]
