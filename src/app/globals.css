@@ -1,0 +1,180 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-sans);
+  --font-mono: var(--font-sans);
+  --font-heading: var(--font-sans);
+
+  --color-hr-primary: var(--hr-primary);
+  --color-hr-primary-hover: var(--hr-primary-hover);
+  --color-hr-bg: var(--hr-bg);
+  --color-hr-card: var(--hr-card);
+  --color-hr-text: var(--hr-text);
+  --color-hr-muted: var(--hr-muted);
+  --color-hr-accent: var(--hr-accent);
+  --color-hr-border: var(--hr-border);
+  --color-hr-success: var(--hr-success);
+  --color-hr-warning: var(--hr-warning);
+  --color-hr-danger: var(--hr-danger);
+
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /* HR palette */
+  --hr-primary: #1e40af;
+  --hr-primary-hover: #1d4ed8;
+  --hr-bg: #f8fafc;
+  --hr-card: #ffffff;
+  --hr-text: #0f172a;
+  --hr-muted: #64748b;
+  --hr-accent: #eff6ff;
+  --hr-border: #e2e8f0;
+  --hr-success: #22c55e;
+  --hr-warning: #f59e0b;
+  --hr-danger: #ef4444;
+
+  /* shadcn variables mapped to HR palette */
+  --background: var(--hr-bg);
+  --foreground: var(--hr-text);
+
+  --card: var(--hr-card);
+  --card-foreground: var(--hr-text);
+
+  --popover: var(--hr-card);
+  --popover-foreground: var(--hr-text);
+
+  --primary: var(--hr-primary);
+  --primary-foreground: #ffffff;
+
+  --secondary: var(--hr-accent);
+  --secondary-foreground: var(--hr-text);
+
+  --muted: #f1f5f9;
+  --muted-foreground: var(--hr-muted);
+
+  --accent: var(--hr-accent);
+  --accent-foreground: var(--hr-primary);
+
+  --destructive: var(--hr-danger);
+  --destructive-foreground: #ffffff;
+
+  --border: var(--hr-border);
+  --input: var(--hr-border);
+  --ring: var(--hr-primary);
+
+  --chart-1: var(--hr-primary);
+  --chart-2: var(--hr-success);
+  --chart-3: var(--hr-warning);
+  --chart-4: var(--hr-danger);
+  --chart-5: #6366f1;
+
+  --radius: 0.75rem;
+
+  --sidebar: var(--hr-card);
+  --sidebar-foreground: var(--hr-text);
+  --sidebar-primary: var(--hr-primary);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--hr-primary);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: var(--hr-border);
+  --sidebar-ring: var(--hr-primary);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply h-full scroll-smooth;
+    font-family: var(--font-sans);
+  }
+
+  body {
+    @apply min-h-full text-foreground antialiased;
+    background-color: var(--background);
+    background-image:
+      radial-gradient(60rem 40rem at 0% -10%, rgba(30, 64, 175, 0.06), transparent 60%),
+      radial-gradient(50rem 35rem at 100% 0%, rgba(30, 64, 175, 0.05), transparent 60%);
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-sans);
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+
+  .font-mono,
+  [class*="font-mono"] {
+    font-family: var(--font-sans);
+    font-feature-settings: "tnum" 1, "zero" 1;
+  }
+
+  a, button, input, select, textarea {
+    @apply focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30;
+  }
+}
+
+@layer utilities {
+  .text-display {
+    font-family: var(--font-sans);
+    letter-spacing: -0.025em;
+    font-weight: 700;
+  }
+
+  .grid-pattern {
+    background-image:
+      linear-gradient(to right, rgba(15, 23, 42, 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+}

@@ -1,0 +1,444 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ----------------------------------------
+// Auth Models (NextAuth / Auth.js standard)
+// ----------------------------------------
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model User {
+  id            String    @id @default(uuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  roleId        String?
+  employeeId    String?   @unique
+
+  accounts  Account[]
+  sessions  Session[]
+  auditLogs AuditLog[]
+
+  role     Role?     @relation(fields: [roleId], references: [id])
+  employee Employee? @relation(fields: [employeeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Role {
+  id          String  @id @default(uuid())
+  name        String  @unique // SUPER_ADMIN, HR_ADMIN, HR_MANAGER, MANAGER, SUPERVISOR, EMPLOYEE, AUDITOR
+  description String?
+
+  users       User[]
+  permissions RolePermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Permission {
+  id          String  @id @default(uuid())
+  action      String  @unique // e.g. "employee.read", "attendance.import"
+  description String?
+
+  roles RolePermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RolePermission {
+  id           String @id @default(uuid())
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+// ----------------------------------------
+// Audit Log
+// ----------------------------------------
+
+model AuditLog {
+  id            String  @id @default(uuid())
+  actorUserId   String?
+  action        String // CREATE, UPDATE, DELETE, IMPORT, EXPORT, APPROVE
+  entityType    String // Employee, Attendance, LeaveRequest, etc.
+  entityId      String
+  before        Json?
+  after         Json?
+  reason        String?
+  ip            String?
+  userAgent     String?
+  correlationId String?
+
+  actor     User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+// ----------------------------------------
+// Employee Master
+// ----------------------------------------
+
+enum EmploymentStatus {
+  PROBATION
+  CONTRACT
+  PERMANENT
+  FREELANCE
+  LEAVE_OF_ABSENCE
+  SUSPENDED
+  RESIGNED
+  TERMINATED
+  CONTRACT_ENDED
+}
+
+model Employee {
+  id               String           @id @default(uuid())
+  employeeNumber   String           @unique
+  attendancePin    String?          @unique
+  fullName         String
+  gender           String? // MALE, FEMALE
+  email            String?          @unique
+  employmentStatus EmploymentStatus @default(CONTRACT)
+  joinDate         DateTime         @db.Date
+  endDate          DateTime?        @db.Date
+  workLocationId   String?
+
+  user                User?
+  rawLogs             AttendanceRawLog[]
+  summaries           AttendanceDailySummary[]
+  positionAssignments EmployeePositionAssignment[]
+  contracts           EmploymentContract[]
+
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  deletedAt              DateTime?
+  employeeKpiAssignments EmployeeKpiAssignment[]
+
+  @@index([employeeNumber])
+}
+
+// ----------------------------------------
+// Organization Models
+// ----------------------------------------
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  code      String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  nodes OrganizationNode[]
+}
+
+model OrganizationNode {
+  id        String  @id @default(uuid())
+  companyId String
+  parentId  String?
+  name      String
+  type      String // e.g. "Department", "Division", "Unit"
+
+  company  Company            @relation(fields: [companyId], references: [id])
+  parent   OrganizationNode?  @relation("OrgHierarchy", fields: [parentId], references: [id])
+  children OrganizationNode[] @relation("OrgHierarchy")
+
+  positions Position[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model JobLevel {
+  id   String @id @default(uuid())
+  code String @unique // e.g. "L1", "L2", "EXECUTIVE"
+  name String
+  rank Int    @default(0) // For sorting
+
+  positions Position[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Position {
+  id                 String  @id @default(uuid())
+  organizationNodeId String
+  jobLevelId         String
+  reportsToId        String?
+  name               String
+  idealCount         Int     @default(1)
+  status             String  @default("ACTIVE") // ACTIVE, INACTIVE
+
+  node          OrganizationNode @relation(fields: [organizationNodeId], references: [id])
+  jobLevel      JobLevel         @relation(fields: [jobLevelId], references: [id])
+  reportsTo     Position?        @relation("PositionHierarchy", fields: [reportsToId], references: [id])
+  directReports Position[]       @relation("PositionHierarchy")
+
+  assignments EmployeePositionAssignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EmployeePositionAssignment {
+  id         String    @id @default(uuid())
+  employeeId String
+  positionId String
+  startDate  DateTime  @db.Date
+  endDate    DateTime? @db.Date
+  isPrimary  Boolean   @default(true)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  position Position @relation(fields: [positionId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([positionId])
+}
+
+model EmploymentContract {
+  id           String    @id @default(uuid())
+  employeeId   String
+  contractType String // PERMANENT, CONTRACT, PROBATION
+  startDate    DateTime  @db.Date
+  endDate      DateTime? @db.Date
+  documentUrl  String?
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId])
+}
+
+// ----------------------------------------
+// Attendance Engine Models
+// ----------------------------------------
+// ... (previous models) ...
+
+// ----------------------------------------
+// KPI Models
+// ----------------------------------------
+
+enum KpiCalculationType {
+  HIGHER_BETTER
+  LOWER_BETTER
+  PERCENTAGE
+  BOOLEAN
+  MANUAL_SCORE
+}
+
+enum KpiStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+enum AssignmentStatus {
+  DRAFT
+  IN_PROGRESS
+  AWAITING_APPROVAL
+  APPROVED
+}
+
+model KpiTemplate {
+  id          String                  @id @default(uuid())
+  name        String
+  description String?
+  isActive    Boolean                 @default(true)
+  categories  KpiCategory[]
+  assignments EmployeeKpiAssignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model KpiCategory {
+  id         String         @id @default(uuid())
+  templateId String
+  name       String
+  weight     Decimal        @default(0) // Percentage of total KPI
+  indicators KpiIndicator[]
+  template   KpiTemplate    @relation(fields: [templateId], references: [id])
+}
+
+model KpiIndicator {
+  id         String             @id @default(uuid())
+  categoryId String
+  name       String
+  type       KpiCalculationType @default(HIGHER_BETTER)
+  unit       String // e.g., "Percentage", "Count", "Currency"
+  weight     Decimal // Weight within category
+  penalty    Decimal            @default(0)
+  category   KpiCategory        @relation(fields: [categoryId], references: [id])
+  items      EmployeeKpiItem[]
+}
+
+model KpiPeriod {
+  id          String                  @id @default(uuid())
+  name        String // e.g., "Q1 2026"
+  startDate   DateTime                @db.Date
+  endDate     DateTime                @db.Date
+  status      KpiStatus               @default(DRAFT)
+  assignments EmployeeKpiAssignment[]
+}
+
+model EmployeeKpiAssignment {
+  id                String           @id @default(uuid())
+  employeeId        String
+  templateId        String
+  periodId          String
+  totalPenaltyScore Decimal          @default(0)
+  finalScore        Decimal?
+  status            AssignmentStatus @default(DRAFT)
+
+  employee Employee          @relation(fields: [employeeId], references: [id])
+  template KpiTemplate       @relation(fields: [templateId], references: [id])
+  period   KpiPeriod         @relation(fields: [periodId], references: [id])
+  items    EmployeeKpiItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EmployeeKpiItem {
+  id           String   @id @default(uuid())
+  assignmentId String
+  indicatorId  String
+  target       Decimal
+  actual       Decimal?
+  score        Decimal?
+
+  assignment EmployeeKpiAssignment @relation(fields: [assignmentId], references: [id])
+  indicator  KpiIndicator          @relation(fields: [indicatorId], references: [id])
+}
+
+enum ScanType {
+  IN
+  OUT
+  BREAK_IN
+  BREAK_OUT
+  UNKNOWN
+}
+
+enum AttendanceSource {
+  FILE_IMPORT
+  DEVICE_API
+  WEBHOOK
+  MANUAL_SYNC
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LEAVE
+  SICK
+  PERMISSION
+  WFH
+  BUSINESS_TRIP
+  ABSENT
+  HOLIDAY
+  OFF
+}
+
+model AttendanceRawLog {
+  id            String           @id @default(uuid())
+  employeeId    String?
+  employeePin   String
+  scanAt        DateTime         @db.Timestamptz(3)
+  scanType      ScanType         @default(UNKNOWN)
+  deviceCode    String?
+  source        AttendanceSource
+  sourceHash    String           @unique
+  rawPayload    Json?
+  importBatchId String?
+
+  employee Employee? @relation(fields: [employeeId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([employeePin, scanAt])
+  @@index([employeeId, scanAt])
+}
+
+model AttendanceDailySummary {
+  id                 String           @id @default(uuid())
+  employeeId         String
+  workDate           DateTime         @db.Date
+  scheduledIn        DateTime?        @db.Timestamptz(3)
+  scheduledOut       DateTime?        @db.Timestamptz(3)
+  actualCheckIn      DateTime?        @db.Timestamptz(3)
+  actualCheckOut     DateTime?        @db.Timestamptz(3)
+  lateMinutes        Int              @default(0)
+  earlyLeaveMinutes  Int              @default(0)
+  workedMinutes      Int              @default(0)
+  overtimeMinutes    Int              @default(0)
+  primaryStatus      AttendanceStatus
+  exceptionFlags     String[] // e.g., ["LATE", "EARLY_LEAVE", "MISSING_CHECK_OUT"]
+  calculationVersion String
+  sourceSnapshot     Json?
+
+  calculatedAt DateTime @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@unique([employeeId, workDate])
+  @@index([workDate, primaryStatus])
+}
