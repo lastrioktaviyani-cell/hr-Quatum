@@ -3,11 +3,12 @@ FROM node:18-alpine AS base
 
 # 1. Install dependencies
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
+# Menambahkan openssl karena aplikasi Anda menggunakan Prisma + Supabase
+RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 COPY package*.json ./
-# Perbaikan di sini: langsung jalankan npm ci tanpa perintah aneh sebelumnya
-RUN npm ci
+# Perbaikan: Menggunakan npm install biasa dengan flag legacy agar bypass konflik versi di server
+RUN npm install --legacy-peer-deps
 
 # 2. Rebuild the source code
 FROM base AS builder
