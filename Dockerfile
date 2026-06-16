@@ -6,7 +6,8 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY package*.json ./
-RUN npm kilobytes && npm ci
+# Perbaikan di sini: langsung jalankan npm ci tanpa perintah aneh sebelumnya
+RUN npm ci
 
 # 2. Rebuild the source code
 FROM base AS builder
