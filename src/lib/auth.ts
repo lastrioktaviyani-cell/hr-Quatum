@@ -120,7 +120,6 @@ name: "Credentials",
     }
   },
 }),
-```
 
 ],
 
@@ -132,7 +131,6 @@ token.roleId = user.roleId;
 token.employeeId = user.employeeId;
 }
 
-```
   return token;
 },
 
@@ -145,7 +143,6 @@ async session({ session, token }) {
 
   return session;
 },
-```
 
 },
 });
