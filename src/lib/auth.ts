@@ -51,7 +51,6 @@ providers: [
 CredentialsProvider({
 name: "Credentials",
 
-```
   credentials: {
     email: {
       label: "Email",
