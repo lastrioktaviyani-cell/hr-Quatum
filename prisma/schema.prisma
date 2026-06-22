@@ -54,6 +54,7 @@ model User {
   accounts  Account[]
   sessions  Session[]
   auditLogs AuditLog[]
+  approvedLeaves LeaveRequest[] @relation("LeaveApprover")
 
   role     Role?     @relation(fields: [roleId], references: [id])
   employee Employee? @relation(fields: [employeeId], references: [id])
@@ -164,6 +165,7 @@ model Employee {
   summaries           AttendanceDailySummary[]
   positionAssignments EmployeePositionAssignment[]
   contracts           EmploymentContract[]
+  leaveRequests       LeaveRequest[]
 
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
@@ -399,6 +401,21 @@ enum AttendanceStatus {
   OFF
 }
 
+enum LeaveType {
+  CUTI_TAHUNAN
+  CUTI_SAKIT
+  IZIN
+  CUTI_MELAHIRKAN
+  CUTI_KHUSUS
+}
+
+enum LeaveStatus {
+  MENUNGGU
+  DISETUJUI
+  DITOLAK
+  DIBATALKAN
+}
+
 model AttendanceRawLog {
   id            String           @id @default(uuid())
   employeeId    String?
@@ -442,4 +459,29 @@ model AttendanceDailySummary {
 
   @@unique([employeeId, workDate])
   @@index([workDate, primaryStatus])
+}
+
+model LeaveRequest {
+  id          String      @id @default(uuid())
+  employeeId  String
+  type        LeaveType
+  startDate   DateTime    @db.Date
+  endDate     DateTime    @db.Date
+  durationDays Int
+  reason      String      @db.Text
+  documentUrl String?
+  status      LeaveStatus @default(MENUNGGU)
+  rejectReason String?    @db.Text
+  approverId  String?
+  approvedAt  DateTime?
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  approver User?    @relation("LeaveApprover", fields: [approverId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([startDate, endDate])
 }
