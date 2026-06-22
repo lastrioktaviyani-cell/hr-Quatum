@@ -91,16 +91,42 @@ async function fetchLeaveRequests(): Promise<readonly LeaveRequest[]> {
   }
 }
 
+const STATS_CACHE_TTL_MS = 60_000;
+type StatsCache = {
+  data: { total: number; menunggu: number; disetujui: number; ditolak: number };
+  expiresAt: number;
+};
+type GlobalWithStatsCache = typeof globalThis & {
+  __statsCache?: StatsCache;
+};
+const statsCacheHolder = globalThis as GlobalWithStatsCache;
+
 async function fetchStats() {
+  const now = Date.now();
+  const cached = statsCacheHolder.__statsCache;
+  if (cached && cached.expiresAt > now) return cached.data;
+
   try {
     const db = getDb();
-    const [total, menunggu, disetujui, ditolak] = await Promise.all([
-      db.leaveRequest.count(),
-      db.leaveRequest.count({ where: { status: "MENUNGGU" } }),
-      db.leaveRequest.count({ where: { status: "DISETUJUI" } }),
-      db.leaveRequest.count({ where: { status: "DITOLAK" } }),
-    ]);
-    return { total, menunggu, disetujui, ditolak };
+    // Single query using groupBy — 1 connection instead of 4
+    const grouped = await db.leaveRequest.groupBy({
+      by: ["status"],
+      _count: { _all: true },
+    });
+    const total = grouped.reduce((acc, g) => acc + g._count._all, 0);
+    const count = (s: string) =>
+      grouped.find((g) => g.status === s)?._count._all ?? 0;
+    const data = {
+      total,
+      menunggu: count("MENUNGGU"),
+      disetujui: count("DISETUJUI"),
+      ditolak: count("DITOLAK"),
+    };
+    statsCacheHolder.__statsCache = {
+      data,
+      expiresAt: now + STATS_CACHE_TTL_MS,
+    };
+    return data;
   } catch {
     return null;
   }

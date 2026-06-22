@@ -60,8 +60,32 @@ function calculateDays(startDate: string, endDate: string): number {
   return Math.floor((end - start) / 86_400_000) + 1;
 }
 
+const LEAVE_CACHE_TTL_MS = 30_000; // 30s — POST/PATCH clear cache
+type LeaveCache = {
+  data: unknown[];
+  expiresAt: number;
+};
+type GlobalWithLeaveCache = typeof globalThis & {
+  __leaveCache?: LeaveCache;
+};
+const leaveCacheHolder = globalThis as GlobalWithLeaveCache;
+
 export async function GET() {
   try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json(
+        { success: false, error: "Tidak terautentikasi" },
+        { status: 401 },
+      );
+    }
+
+    const now = Date.now();
+    const cached = leaveCacheHolder.__leaveCache;
+    if (cached && cached.expiresAt > now) {
+      return NextResponse.json({ success: true, data: cached.data });
+    }
+
     const leaveRequests = await getDb().leaveRequest.findMany({
       include: {
         employee: {
@@ -136,6 +160,8 @@ export async function POST(req: NextRequest) {
         employee: { select: { id: true, employeeNumber: true, fullName: true } },
       },
     });
+
+    leaveCacheHolder.__leaveCache = undefined;
 
     return NextResponse.json({ success: true, data: created }, { status: 201 });
   } catch (error: unknown) {

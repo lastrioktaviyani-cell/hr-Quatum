@@ -45,6 +45,9 @@ export async function PATCH(
       },
     });
 
+    // Invalidate the leave list cache (shared globalThis across handlers).
+    (globalThis as { __leaveCache?: unknown }).__leaveCache = undefined;
+
     return NextResponse.json({ success: true, data: updated });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
