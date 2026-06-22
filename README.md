@@ -1,36 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# HRD Quantum
 
-## Getting Started
+Sistem informasi Human Resources: karyawan, kehadiran, cuti, dan analitik.
 
-First, run the development server:
+## 🚀 Quick Start
+
+### 1. Setup Database
+
+Buat file `.env` di root project:
+
+```env
+DATABASE_URL=postgresql://user:password@host:5432/hrd_quantum
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=generate-with-openssl-rand-base64-32
+```
+
+Contoh untuk Supabase:
+```env
+DATABASE_URL=postgresql://postgres.xxxx:password@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres
+```
+
+Generate NEXTAUTH_SECRET:
+```bash
+openssl rand -base64 32
+```
+
+### 2. Install & Migrate
+
+```bash
+npm install
+npx prisma migrate dev
+npx prisma db seed
+```
+
+Seed akan membuat:
+- 6 role (SUPER_ADMIN, HR_ADMIN, dll)
+- 24 permission
+- 1 admin user: `admin@perusahaan.com` / `admin123`
+- **10 karyawan** (8 aktif, 2 soft-deleted) dari mock-data
+- **4 sample pengajuan cuti** (1 menunggu, 1 disetujui, 1 ditolak, 1 menunggu)
+- 1 KPI template + 1 period
+
+### 3. Run
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Buka [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🐳 Docker (Alternative)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+docker-compose up -d
+```
 
-## Learn More
+## 🧪 Login Demo
 
-To learn more about Next.js, take a look at the following resources:
+```
+Email:    admin@perusahaan.com
+Password: admin123
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 📁 Struktur
 
-## Deploy on Vercel
+- `src/app/` — Next.js App Router (halaman + API)
+- `src/components/` — React components
+- `src/lib/` — utilities & business logic
+- `prisma/` — schema, migrations, seed
+- `docs/` — dokumentasi
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 📚 Dokumentasi
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Penjelasan Lengkap](docs/PENJELASAN_SINGKAT.md)
+- [Slide Presentasi](docs/PRESENTASI_HRD_QUANTUM.md)
+
+## 🔐 Keamanan
+
+- Jangan commit `.env` (sudah di `.gitignore`)
+- Rotate `NEXTAUTH_SECRET` untuk production
+- Gunakan password DB yang kuat
