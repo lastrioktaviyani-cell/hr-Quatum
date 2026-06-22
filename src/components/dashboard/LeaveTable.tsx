@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Check, Eye, FileText, Loader2, Plus, X } from "lucide-react";
-import type { LeaveRequest } from "@/lib/mock-data";
+import { EMPLOYEES, type EmployeeRow, type LeaveRequest } from "@/lib/mock-data";
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; dot: string }> = {
   Menunggu: { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500" },
@@ -36,7 +36,19 @@ type ApiEmployee = {
   readonly id: string;
   readonly employeeNumber: string;
   readonly fullName: string;
+  readonly department?: string;
 };
+
+// Fallback: derive employees from mock-data when API unavailable.
+// EmployeeRow.id is like "e1" — we synthesize a stable UUID-like id so
+// downstream API call can either use it as-is (mock) or be replaced when real
+// employees are loaded. Real DB UUIDs are 36 chars, mock ids are short.
+const MOCK_EMPLOYEES: readonly ApiEmployee[] = EMPLOYEES.map((e: EmployeeRow) => ({
+  id: e.id,
+  employeeNumber: e.nip,
+  fullName: e.name,
+  department: e.department,
+}));
 
 type ApiLeaveRequest = {
   readonly id: string;
@@ -163,7 +175,7 @@ export function LeaveTable({ data }: { data: readonly LeaveRequest[] }) {
 
   const [showAjukan, setShowAjukan] = useState(false);
   const [employees, setEmployees] = useState<readonly ApiEmployee[]>([]);
-  const [sessionEmployeeId, setSessionEmployeeId] = useState<string | null>(null);
+  const [employeeSource, setEmployeeSource] = useState<"api" | "mock">("api");
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -176,28 +188,67 @@ export function LeaveTable({ data }: { data: readonly LeaveRequest[] }) {
     setFormError(null);
 
     Promise.all([
-      fetch("/api/auth/me").then((r) => r.json()),
-      fetch("/api/employees").then((r) => r.json()),
+      fetch("/api/auth/me")
+        .then((r) => r.json())
+        .catch((e) => ({ success: false, error: String(e) })),
+      fetch("/api/employees")
+        .then((r) => r.json())
+        .catch((e) => ({ success: false, error: String(e) })),
     ])
       .then(([meRes, empRes]) => {
         if (cancelled) return;
-        const myEmployeeId: string | null = meRes?.data?.employeeId ?? null;
-        setSessionEmployeeId(myEmployeeId);
+        console.log("[AjukanCuti] /api/auth/me:", meRes);
+        console.log("[AjukanCuti] /api/employees:", empRes);
 
-        const list: ApiEmployee[] = Array.isArray(empRes?.data) ? empRes.data : [];
+        const myEmployeeId: string | null = meRes?.data?.employeeId ?? null;
+
+        let list: ApiEmployee[] = [];
+        let source: "api" | "mock" = "mock";
+        if (
+          empRes?.success === true &&
+          Array.isArray(empRes.data) &&
+          empRes.data.length > 0
+        ) {
+          list = empRes.data.map((e: ApiEmployee) => ({
+            id: e.id,
+            employeeNumber: e.employeeNumber,
+            fullName: e.fullName,
+          }));
+          source = "api";
+        } else {
+          const reason =
+            empRes?.error ??
+            (empRes?.success === false
+              ? "API returned success=false"
+              : "empty/invalid response");
+          console.warn(
+            `[AjukanCuti] Fallback ke mock-data: ${reason}. Pastikan DB sudah di-seed & DATABASE_URL di-set.`,
+          );
+          list = [...MOCK_EMPLOYEES];
+        }
         setEmployees(list);
+        setEmployeeSource(source);
+
+        const prefill =
+          (myEmployeeId && list.find((e) => e.id === myEmployeeId)?.id) ||
+          list[0]?.id ||
+          "";
 
         setForm((prev) => ({
           ...prev,
-          employeeId: myEmployeeId ?? prev.employeeId ?? list[0]?.id ?? "",
+          employeeId: prefill,
         }));
       })
       .catch((err: unknown) => {
         if (cancelled) return;
+        console.error("[AjukanCuti] Unexpected error:", err);
+        setEmployees([...MOCK_EMPLOYEES]);
+        setEmployeeSource("mock");
+        setForm((prev) => ({ ...prev, employeeId: MOCK_EMPLOYEES[0]?.id ?? "" }));
         setFormError(
           err instanceof Error
-            ? `Gagal memuat data: ${err.message}`
-            : "Gagal memuat data",
+            ? `Gagal memuat data (pakai data contoh): ${err.message}`
+            : "Gagal memuat data, menggunakan data contoh",
         );
       })
       .finally(() => {
@@ -570,33 +621,31 @@ export function LeaveTable({ data }: { data: readonly LeaveRequest[] }) {
 
             <form className="space-y-4 p-5" onSubmit={submitAjukan}>
               <label className="block">
-                <span className="text-sm font-semibold text-foreground">Karyawan</span>
-                {sessionEmployeeId ? (
-                  <input
-                    type="text"
-                    value={
-                      employees.find((e) => e.id === sessionEmployeeId)?.fullName ??
-                      "Akun Anda"
-                    }
-                    readOnly
-                    className="mt-2 h-10 w-full rounded-lg border border-input bg-secondary/40 px-3 text-sm text-foreground"
-                  />
-                ) : (
-                  <select
-                    required
-                    value={form.employeeId}
-                    onChange={(e) => setForm({ ...form, employeeId: e.target.value })}
-                    disabled={loadingContext}
-                    className="mt-2 h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground"
-                  >
-                    <option value="">— Pilih karyawan —</option>
-                    {employees.map((emp) => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.fullName} ({emp.employeeNumber})
-                      </option>
-                    ))}
-                  </select>
-                )}
+                <span className="flex items-center justify-between gap-2 text-sm font-semibold text-foreground">
+                  <span>Karyawan</span>
+                  {employeeSource === "mock" && (
+                    <span
+                      className="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700"
+                      title="Database tidak terhubung, menampilkan data contoh"
+                    >
+                      Data contoh
+                    </span>
+                  )}
+                </span>
+                <select
+                  required
+                  value={form.employeeId}
+                  onChange={(e) => setForm({ ...form, employeeId: e.target.value })}
+                  disabled={loadingContext}
+                  className="mt-2 h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground"
+                >
+                  <option value="">— Pilih karyawan —</option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.fullName} ({emp.employeeNumber})
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <label className="block">
