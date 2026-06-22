@@ -13,7 +13,12 @@ const leaveTypeEnum = z.enum([
 
 const createLeaveSchema = z
   .object({
-    employeeId: z.string().uuid("employeeId tidak valid"),
+    // Accept either a UUID or an employee number (NIP) for flexibility.
+    // The server resolves employeeNumber → employeeId before insert.
+    employeeId: z
+      .string()
+      .min(1, "employeeId atau employeeNumber wajib diisi")
+      .max(64),
     type: leaveTypeEnum,
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal YYYY-MM-DD"),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal YYYY-MM-DD"),
@@ -24,6 +29,30 @@ const createLeaveSchema = z
     message: "Tanggal mulai harus sebelum atau sama dengan tanggal selesai",
     path: ["endDate"],
   });
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function resolveEmployeeId(input: string): Promise<{
+  id: string;
+  created: boolean;
+} | null> {
+  const db = getDb();
+  if (UUID_RE.test(input)) {
+    const emp = await db.employee.findUnique({
+      where: { id: input },
+      select: { id: true, deletedAt: true },
+    });
+    if (emp && !emp.deletedAt) return { id: emp.id, created: false };
+    return null;
+  }
+  // Lookup by employeeNumber
+  const emp = await db.employee.findUnique({
+    where: { employeeNumber: input },
+    select: { id: true, deletedAt: true, fullName: true },
+  });
+  if (emp && !emp.deletedAt) return { id: emp.id, created: false };
+  return null;
+}
 
 function calculateDays(startDate: string, endDate: string): number {
   const start = new Date(`${startDate}T00:00:00Z`).getTime();
@@ -59,20 +88,22 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const parsed = createLeaveSchema.parse(body);
 
-    const employee = await getDb().employee.findUnique({
-      where: { id: parsed.employeeId },
-      select: { id: true, deletedAt: true },
-    });
-    if (!employee || employee.deletedAt) {
+    // Resolve to a real employee UUID. Accept either UUID or employeeNumber.
+    const resolved = await resolveEmployeeId(parsed.employeeId);
+    if (!resolved) {
       return NextResponse.json(
-        { success: false, error: "Karyawan tidak ditemukan" },
+        {
+          success: false,
+          error: `Karyawan tidak ditemukan: ${parsed.employeeId}`,
+        },
         { status: 404 },
       );
     }
+    const employeeId = resolved.id;
 
     const overlapping = await getDb().leaveRequest.findFirst({
       where: {
-        employeeId: parsed.employeeId,
+        employeeId,
         status: { in: ["MENUNGGU", "DISETUJUI"] },
         AND: [
           { startDate: { lte: new Date(`${parsed.endDate}T00:00:00Z`) } },
@@ -92,7 +123,7 @@ export async function POST(req: NextRequest) {
 
     const created = await getDb().leaveRequest.create({
       data: {
-        employeeId: parsed.employeeId,
+        employeeId,
         type: parsed.type,
         startDate: new Date(`${parsed.startDate}T00:00:00Z`),
         endDate: new Date(`${parsed.endDate}T00:00:00Z`),

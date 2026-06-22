@@ -326,11 +326,19 @@ export function LeaveTable({ data }: { data: readonly LeaveRequest[] }) {
 
     setSubmitting(true);
     try {
+      // Send the human-friendly employeeNumber when the source is the
+      // mock list (its ids aren't real DB UUIDs). The server resolves
+      // either form into a real employee record.
+      const selected = employees.find((e) => e.id === form.employeeId);
+      const idOrNumber = employeeSource === "mock"
+        ? (selected?.employeeNumber ?? form.employeeId)
+        : form.employeeId;
+
       const res = await fetch("/api/cuti", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          employeeId: form.employeeId,
+          employeeId: idOrNumber,
           type: form.type,
           startDate: form.startDate,
           endDate: form.endDate,
@@ -340,7 +348,16 @@ export function LeaveTable({ data }: { data: readonly LeaveRequest[] }) {
       });
       const json = await res.json();
       if (!res.ok || !json.success) {
-        setFormError(json.error ?? "Gagal mengajukan cuti");
+        let msg = json.error ?? "Gagal mengajukan cuti";
+        if (Array.isArray(json.details) && json.details.length > 0) {
+          const fieldErrors = json.details
+            .map((d: { path?: (string | number)[]; message?: string }) =>
+              `${(d.path ?? []).join(".")}: ${d.message ?? "tidak valid"}`,
+            )
+            .join("; ");
+          if (fieldErrors) msg = `${msg} (${fieldErrors})`;
+        }
+        setFormError(msg);
         return;
       }
       const created: ApiLeaveRequest = json.data;
