@@ -204,11 +204,10 @@ export function LeaveTable({ data }: { data: readonly LeaveRequest[] }) {
 
         let list: ApiEmployee[] = [];
         let source: "api" | "mock" = "mock";
-        if (
-          empRes?.success === true &&
-          Array.isArray(empRes.data) &&
-          empRes.data.length > 0
-        ) {
+        if (empRes?.success === true && Array.isArray(empRes.data)) {
+          // Use API result even if the list is empty. Empty means the DB
+          // is reachable but has no active employees — that's a real
+          // state, not a fallback trigger.
           list = empRes.data.map((e: ApiEmployee) => ({
             id: e.id,
             employeeNumber: e.employeeNumber,
@@ -228,6 +227,16 @@ export function LeaveTable({ data }: { data: readonly LeaveRequest[] }) {
         }
         setEmployees(list);
         setEmployeeSource(source);
+
+        if (source === "api" && list.length === 0) {
+          console.warn(
+            "[AjukanCuti] API sukses tapi data karyawan kosong. " +
+              "Kemungkinan DB belum di-seed. Jalankan: npx prisma db seed",
+          );
+          setFormError(
+            "Database terhubung tetapi belum ada karyawan. Jalankan: npx prisma db seed",
+          );
+        }
 
         const prefill =
           (myEmployeeId && list.find((e) => e.id === myEmployeeId)?.id) ||
